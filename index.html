@@ -31,13 +31,15 @@
       <a href="#entreprise">L'entreprise</a>
       <a href="#expertises">Expertises</a>
       <a href="#offres">Diagnostic</a>
-      <a href="#outils">Outils de gestion</a>
+      <a href="#outils">Simulateurs</a>
       <a href="#realisations">Réalisations</a>
       <a href="#references">Références</a>
       <a href="#contact" class="btn btn--gold btn--sm nav__cta">Nous contacter</a>
+      <a href="gestion/" class="btn btn--ghost btn--sm nav__gestion nav__gestion--desk" title="Outil de gestion interne (réservé à l'équipe NMJ)">Espace NMJ</a>
       <div class="nav__quick">
         <a class="btn btn--ghost" href="tel:+241062821838">Appeler</a>
         <a class="btn btn--wa" href="https://wa.me/241074664764?text=Bonjour%20NMJ%20Services%2C%20je%20souhaite%20des%20informations." target="_blank" rel="noopener">WhatsApp</a>
+        <a class="btn btn--ghost nav__gestion" href="gestion/">Espace gestion NMJ</a>
       </div>
     </nav>
     <button class="burger" id="burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav">
@@ -58,7 +60,7 @@
     <p class="hero__lead reveal">NMJ Services accompagne les entreprises, les industriels et les collectivités du Gabon : du bâtiment à l'énergie qui l'alimente, jusqu'à l'organisation qui le fait tourner.</p>
     <div class="hero__actions reveal">
       <a href="#contact" class="btn btn--gold">Demander un devis</a>
-      <a href="#outils" class="btn btn--ghost">Essayer nos outils</a>
+      <a href="#outils" class="btn btn--ghost">Essayer nos simulateurs</a>
     </div>
   </div>
   <div class="hero__strip">
@@ -253,39 +255,18 @@
 <section class="section section--dark tools" id="outils">
   <div class="container">
     <div class="section__head">
-      <p class="eyebrow eyebrow--light reveal">05 — Outils de gestion</p>
-      <h2 class="title title--light reveal">Votre espace pour piloter chantiers, installations et conformité</h2>
-      <p class="section__lead section__lead--light reveal">Quatre outils pensés pour le BTP, l'électricité et l'énergie. Données de démonstration : en production, ils se branchent sur vos vrais chantiers et équipements.</p>
+      <p class="eyebrow eyebrow--light reveal">05 — Simulateurs</p>
+      <h2 class="title title--light reveal">Estimez votre besoin en quelques secondes</h2>
+      <p class="section__lead section__lead--light reveal">Deux simulateurs gratuits pour préparer votre demande : le coût d'un diagnostic électrique et le dimensionnement d'une installation solaire. Résultats indicatifs, confirmés par devis.</p>
     </div>
 
-    <div class="tabs reveal" role="tablist" aria-label="Outils de gestion">
-      <button class="tab is-active" role="tab" id="t-chantiers" aria-selected="true" aria-controls="p-chantiers" data-tab="chantiers"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6"/></svg><span>Suivi de chantiers</span></button>
-      <button class="tab" role="tab" id="t-diag" aria-selected="false" aria-controls="p-diag" data-tab="diag"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg><span>Devis diagnostic</span></button>
+    <div class="tabs reveal" role="tablist" aria-label="Simulateurs">
+      <button class="tab is-active" role="tab" id="t-diag" aria-selected="true" aria-controls="p-diag" data-tab="diag"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg><span>Coût d'un diagnostic</span></button>
       <button class="tab" role="tab" id="t-solaire" aria-selected="false" aria-controls="p-solaire" data-tab="solaire"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Simulateur solaire</span></button>
-      <button class="tab" role="tab" id="t-maint" aria-selected="false" aria-controls="p-maint" data-tab="maint"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4M9 15l2 2 4-4"/></svg><span>Maintenance &amp; habilitations</span></button>
-    </div>
-
-    <!-- 1. Suivi de chantiers -->
-    <div class="tpanel is-active" role="tabpanel" id="p-chantiers" aria-labelledby="t-chantiers">
-      <div class="kpis" id="kpis"></div>
-      <div class="tool-bar">
-        <div class="chips" id="proj-filters" role="group" aria-label="Filtrer par pôle">
-          <button class="chip is-active" data-f="all">Tous</button>
-          <button class="chip" data-f="civil">Génie civil</button>
-          <button class="chip" data-f="elec">Électricité</button>
-          <button class="chip" data-f="enr">Énergie</button>
-          <button class="chip" data-f="conf">Conformité</button>
-        </div>
-        <span class="tool-hint">Touchez un chantier pour voir le détail</span>
-      </div>
-      <div class="proj-layout">
-        <ul class="proj-list" id="proj-list"></ul>
-        <aside class="proj-detail" id="proj-detail" aria-live="polite"></aside>
-      </div>
     </div>
 
     <!-- 2. Devis diagnostic -->
-    <div class="tpanel" role="tabpanel" id="p-diag" aria-labelledby="t-diag" hidden>
+    <div class="tpanel is-active" role="tabpanel" id="p-diag" aria-labelledby="t-diag">
       <div class="calc">
         <div class="calc__form">
           <h3>Composez votre diagnostic</h3>
@@ -360,19 +341,6 @@
       </div>
     </div>
 
-    <!-- 4. Maintenance & habilitations -->
-    <div class="tpanel" role="tabpanel" id="p-maint" aria-labelledby="t-maint" hidden>
-      <div class="tool-bar">
-        <div class="chips" id="m-filters" role="group" aria-label="Filtrer le suivi">
-          <button class="chip is-active" data-f="all">Tout</button>
-          <button class="chip" data-f="late">En retard</button>
-          <button class="chip" data-f="soon">À planifier</button>
-          <button class="chip" data-f="ok">À jour</button>
-        </div>
-        <span class="tool-hint" id="m-summary"></span>
-      </div>
-      <ul class="maint" id="maint"></ul>
-    </div>
   </div>
 </section>
 
@@ -489,6 +457,30 @@
   </div>
 </section>
 
+<!-- ============ ESPACE GESTION ============ -->
+<section class="section section--cream gestion-band" id="gestion">
+  <div class="container gestion-band__inner">
+    <div class="gestion-band__text">
+      <p class="eyebrow reveal">Pour l'équipe NMJ</p>
+      <h2 class="title reveal">Un outil de gestion interne, à vos couleurs</h2>
+      <p class="reveal">Pilotez toute l'entreprise depuis un seul écran, sur ordinateur comme sur téléphone : devis et factures prêts à imprimer, suivi des paiements, planning des équipes, chantiers et budgets, ressources humaines avec suivi des habilitations électriques, stock de matériel.</p>
+      <ul class="checks reveal">
+        <li><strong>Devis &amp; factures</strong> — catalogue de prestations, TVA, montant en lettres, envoi WhatsApp</li>
+        <li><strong>Planning &amp; RH</strong> — affectation des équipes, congés, alertes d'habilitation expirée</li>
+        <li><strong>Chantiers &amp; stock</strong> — avancement, budget consommé, seuils de réapprovisionnement</li>
+      </ul>
+      <a href="gestion/" class="btn btn--gold reveal">Ouvrir l'espace de gestion (démo)</a>
+    </div>
+    <div class="gestion-band__mock reveal" aria-hidden="true">
+      <div class="mock"><div class="mock__bar"><i></i><i></i><i></i></div>
+        <div class="mock__kpis"><span><b>9,3 M</b>Facturé</span><span><b>22,9 M</b>Encaissé</span><span><b>4</b>Chantiers</span></div>
+        <div class="mock__chart"><i style="height:38%"></i><i style="height:62%"></i><i style="height:48%"></i><i style="height:92%"></i><i style="height:70%"></i><i style="height:84%"></i></div>
+        <div class="mock__rows"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ============ CONTACT ============ -->
 <section class="section section--dark contact" id="contact">
   <div class="container contact__inner">
@@ -544,12 +536,13 @@
       <a href="#entreprise">L'entreprise</a>
       <a href="#expertises">Expertises</a>
       <a href="#offres">Diagnostic</a>
-      <a href="#outils">Outils</a>
+      <a href="#outils">Simulateurs</a>
       <a href="#realisations">Réalisations</a>
       <a href="#references">Références</a>
       <a href="#contact">Contact</a>
+      <a href="gestion/">Espace NMJ</a>
     </nav>
-    <p class="footer__copy">© <span id="year">2026</span> NMJ SERVICES — Owendo, Libreville. Tous droits réservés. <span class="footer__credit">Site développé par <strong>Rouana</strong>.</span></p>
+    <p class="footer__copy">© <span id="year">2026</span> NMJ SERVICES — Owendo, Libreville. Tous droits réservés. <span class="footer__credit">Site développé par <strong>Nendja</strong>.</span></p>
   </div>
 </footer>
 
@@ -558,7 +551,7 @@
   <a class="appbar__btn" href="tel:+241062821838"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg><span>Appeler</span></a>
   <a class="appbar__btn appbar__btn--wa" href="https://wa.me/241074664764?text=Bonjour%20NMJ%20Services%2C%20je%20souhaite%20des%20informations." target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M3.5 20.5l1.3-4.2A8.5 8.5 0 1 1 8 19.4z"/><path d="M9 8.5c0 3.5 2.5 6.5 6.5 6.8l1-1.6-2-1-1 1c-1.2-.5-2.2-1.5-2.7-2.7l1-1-1-2-1.6.9"/></svg><span>WhatsApp</span></a>
   <a class="appbar__btn appbar__btn--main" href="#contact"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/></svg><span>Devis</span></a>
-  <a class="appbar__btn" href="#outils"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Outils</span></a>
+  <a class="appbar__btn" href="#outils"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Simuler</span></a>
   <button class="appbar__btn" id="bar-chat" type="button" aria-label="Poser une question à l'assistant"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Question</span></button>
 </nav>
 

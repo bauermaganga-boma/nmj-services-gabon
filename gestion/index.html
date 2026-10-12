@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>NMJ Gestion — Espace interne</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0e1a2e">
+  <link rel="icon" type="image/png" href="../assets/img/logo.png">
+  <link rel="apple-touch-icon" href="../assets/img/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="gestion.css">
+</head>
+<body>
+
+<!-- Connexion (démonstration) -->
+<div class="login" id="login">
+  <div class="login__card">
+    <img class="login__logo" src="../assets/img/logo.png" alt="Logo NMJ Services">
+    <h1>NMJ Gestion</h1>
+    <p>Espace interne : devis, factures, planning, chantiers, équipe et stock.</p>
+    <button class="btn btn--pri btn--block" data-act="enter" style="min-height:48px">Accéder à l'espace de gestion</button>
+    <p class="login__note">Version de démonstration : les données affichées sont fictives et restent dans votre navigateur. En production, l'accès sera protégé par un compte et un mot de passe propres à NMJ Services.</p>
+    <a class="login__back" href="../">← Retour au site NMJ Services</a>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="side">
+    <a class="side__brand" href="#/dashboard"><img src="../assets/img/logo.png" alt=""><div><b>NMJ Gestion</b><small>ESPACE INTERNE</small></div></a>
+    <nav id="nav" aria-label="Navigation de l'application"></nav>
+    <div class="side__foot">
+      <div class="user"><span class="avatar">NM</span><div><b>Direction NMJ</b><small>Administrateur (démo)</small></div></div>
+      <a class="side__link" href="../">← Retour au site</a>
+      <button class="side__link" style="background:none;border:0;text-align:left;font:inherit;font-weight:700;cursor:pointer" data-act="logout">Se déconnecter</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <a class="mobile-logo" href="#/dashboard" aria-label="Tableau de bord"><img src="../assets/img/logo.png" alt="" width="34" height="34"></a>
+      <div><h1 id="title">Tableau de bord</h1><span class="date" id="date"></span></div>
+      <span class="top__sp"></span>
+      <button class="btn btn--pri desk-only" data-act="create"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Créer</button>
+    </header>
+    <main class="view" id="view"></main>
+  </div>
+</div>
+
+<nav class="tabbar" id="tabbar" aria-label="Navigation mobile"></nav>
+<div id="modals"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

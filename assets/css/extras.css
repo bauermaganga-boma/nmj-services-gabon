@@ -288,3 +288,33 @@ input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 
 .pole--cta { overflow: visible; }
 @media (max-width: 900px) { .hero__bg { background-position: 72% 50%; } }
 @media (max-width: 900px) { .brand { position: relative; z-index: 2; } }
+
+/* ---------- Espace de gestion (bandeau) ---------- */
+.nav__gestion--desk { border-color: rgba(255, 255, 255, .4); color: #fff; }
+.gestion-band__inner { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(2rem, 5vw, 5rem); align-items: center; }
+.gestion-band__text > p { color: var(--muted); }
+.gestion-band__text .checks { margin: 1.2rem 0 2rem; }
+.mock { background: var(--choco); border-radius: 18px; padding: 1.1rem 1.2rem 1.4rem; box-shadow: var(--shadow-lg); transform: rotate(1.5deg); }
+.mock__bar { display: flex; gap: 6px; margin-bottom: 1rem; } .mock__bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .25); }
+.mock__kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+.mock__kpis span { background: rgba(255, 255, 255, .07); border-radius: 10px; padding: .7rem; font-size: .7rem; color: rgba(244, 246, 250, .65); font-weight: 700; }
+.mock__kpis b { display: block; font-family: var(--ff-display); font-size: 1.3rem; color: var(--gold); }
+.mock__chart { height: 130px; display: flex; align-items: flex-end; gap: 12px; margin: 1.1rem 0; padding: 0 .5rem; border-bottom: 1px solid rgba(255, 255, 255, .12); }
+.mock__chart i { flex: 1; background: linear-gradient(180deg, var(--gold), var(--gold-2)); border-radius: 6px 6px 0 0; }
+.mock__chart i:nth-child(odd) { background: linear-gradient(180deg, #3a5a94, var(--brown)); }
+.mock__rows span { display: block; height: 12px; border-radius: 6px; background: rgba(255, 255, 255, .08); margin-top: .6rem; } .mock__rows span:nth-child(2) { width: 80%; } .mock__rows span:nth-child(3) { width: 60%; }
+@media (max-width: 900px) {
+  .nav__gestion--desk { display: none; }
+  .nav__quick .nav__gestion { grid-column: 1 / -1; }
+  .gestion-band__inner { grid-template-columns: 1fr; }
+  .mock { transform: none; }
+}
+
+/* En-tête : compacter la navigation pour laisser la place à « Espace NMJ » */
+.nav { gap: 1.4rem; }
+.nav a:not(.btn) { font-size: .9rem; white-space: nowrap; }
+.nav .btn, .brand__text { white-space: nowrap; }
+.header__inner { gap: 1.2rem; }
+@media (max-width: 1240px) { .nav { gap: 1rem; } .nav a:not(.btn) { font-size: .85rem; } .brand__text small { display: none; } }
+@media (max-width: 1100px) { .nav__gestion--desk { display: none; } }
+@media (max-width: 900px) { .nav a:not(.btn) { font-size: 1.45rem; } .nav { gap: .2rem; } }
