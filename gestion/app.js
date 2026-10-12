@@ -21,7 +21,7 @@
     ['dashboard', 'Tableau de bord', 'home', 'Pilotage'], ['devis', 'Devis', 'devis', 'Commercial'], ['factures', 'Factures', 'facture', 'Commercial'], ['clients', 'Clients', 'users', 'Commercial'],
     ['chantiers', 'Chantiers', 'chantier', 'Production'], ['planning', 'Planning', 'cal', 'Production'], ['rh', 'Équipe & RH', 'team', 'Ressources'], ['stock', 'Stock & matériel', 'box', 'Ressources'], ['params', 'Paramètres', 'cog', 'Administration']
   ];
-  var UI = { route: 'dashboard', q: '', f: {}, week: N.monday(N.today()) };
+  var UI = { route: 'dashboard', q: '', f: {}, week: N.monday(N.today()), planTab: 'equipes', gz: 'week', gc: 'all' };
   var CH_COL = ['#1d4f91', '#c2570c', '#2f8f5b', '#7a3fa3', '#a8780a', '#0e7c86', '#b23a5e'];
   var DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
@@ -44,7 +44,7 @@
   var badge = function (s) { return '<span class="badge ' + (BADGE[s] || 'b-mute') + '">' + esc(s) + '</span>'; };
   function ago(ts) { var m = Math.round((Date.now() - ts) / 60000); if (m < 60) return 'il y a ' + Math.max(1, m) + ' min'; if (m < 1440) return 'il y a ' + Math.round(m / 60) + ' h'; return 'il y a ' + Math.round(m / 1440) + ' j'; }
   function habState(h) { var d = N.diff(h.expire, N.today()); return d < 0 ? 'bad' : (d <= 30 ? 'warn' : 'ok'); }
-  function persist(msg) { N.setState(S); if (msg) N.log(msg); N.save(); }
+  function persist(msg) { N.setState(S); if (msg) N.log(msg); var ok = N.save(); if (!ok) toast('Stockage du navigateur plein : supprimez des documents volumineux'); return ok; }
   var waLink = function (tel, text) { return 'https://wa.me/241' + String(tel || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text); };
 
   /* ---------- Interface : modales, toasts ---------- */
@@ -91,6 +91,7 @@
     var al = [];
     S.factures.forEach(function (f, i) { if (inf[i].st === 'en retard') al.push({ k: 'bad', i: 'cash', t: f.num + ' — ' + cli(f.clientId).name, s: fmt(inf[i].bal) + ' XAF impayés · retard de ' + inf[i].late + ' j', a: 'viewDoc', ty: 'factures', id: f.id }); });
     S.employees.forEach(function (e) { e.habs.forEach(function (h) { var st = habState(h); if (st !== 'ok') al.push({ k: st, i: 'bolt', t: 'Habilitation ' + h.label + ' — ' + e.name, s: st === 'bad' ? 'Expirée depuis ' + Math.abs(N.diff(h.expire, t)) + ' j : ne pas affecter aux travaux électriques' : 'Expire dans ' + N.diff(h.expire, t) + ' j : programmer le recyclage', a: 'openEmp', id: e.id }); }); });
+    S.employees.forEach(function (e) { var ms = medState(e); if (ms === 'bad' || ms === 'warn') al.push({ k: ms, i: 'team', t: 'Visite médicale — ' + e.name, s: ms === 'bad' ? 'Aptitude expirée depuis ' + Math.abs(N.diff(e.visite.expire, t)) + ' j' : 'Expire dans ' + N.diff(e.visite.expire, t) + ' j : prendre rendez-vous', a: 'openEmp', id: e.id }); });
     S.stock.filter(function (x) { return x.qty < x.min; }).forEach(function (x) { al.push({ k: 'warn', i: 'box', t: x.label, s: 'Stock bas : ' + x.qty + ' ' + x.unit + ' (seuil ' + x.min + ')', a: 'go', id: 'stock' }); });
     sent.forEach(function (d) { var dd = N.diff(t, d.date); if (dd >= 10) al.push({ k: 'info', i: 'devis', t: d.num + ' sans réponse — ' + cli(d.clientId).name, s: 'Envoyé il y a ' + dd + ' j : relancer le client', a: 'viewDoc', ty: 'devis', id: d.id }); });
     al.sort(function (x, y) { return ({ bad: 0, warn: 1, info: 2 })[x.k] - ({ bad: 0, warn: 1, info: 2 })[y.k]; });
@@ -167,7 +168,7 @@
   };
 
   /* ----- Planning ----- */
-  V.planning = function () {
+  function planningTeams() {
     var wk = UI.week, days = DAYS.map(function (_, i) { return N.addD(wk, i); }), t = N.today();
     var staff = S.employees.filter(function (e) { return e.service !== 'Administration'; });
     var perCh = {}, ab = 0;
@@ -185,22 +186,127 @@
     return '<div class="toolbar"><div class="weeknav"><button class="btn btn--line btn--icon" data-act="week" data-d="-7" aria-label="Semaine précédente">' + ic('l') + '</button><b>' + wl + '</b><button class="btn btn--line btn--icon" data-act="week" data-d="7" aria-label="Semaine suivante">' + ic('r') + '</button></div><button class="btn btn--line" data-act="week" data-d="0">Aujourd\'hui</button><span style="flex:1"></span><button class="btn btn--pri" data-act="leave">' + ic('plus') + 'Poser un congé</button></div>' +
       '<div class="plan-wrap"><table class="plan"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table></div>' +
       '<div class="card"><div class="card__h"><h3>Charge de la semaine</h3><small>' + Object.keys(perCh).reduce(function (a, k) { return a + perCh[k]; }, 0) + ' jours-homme planifiés · ' + ab + ' absence(s)</small></div><div class="legend">' + legend + '<span><i style="background:#8a97ad"></i>Congé</span><span><i style="background:#6c4fb8"></i>Formation</span><span><i style="background:#c0575a"></i>Maladie</span></div><p style="margin-top:.8rem;color:var(--muted);font-size:.85rem;font-weight:600">Touchez une case pour affecter un salarié. ⚠ = habilitation électrique expirée.</p></div>';
+  }
+
+  /* ----- Planning : onglets Équipes / Travaux (Gantt) ----- */
+  V.planning = function () {
+    var tabs = '<div class="chips">' + [['equipes', 'Équipes (semaine)'], ['gantt', 'Planning travaux (Gantt)']].map(function (x) { return '<button class="chip ' + (UI.planTab === x[0] ? 'is-on' : '') + '" data-act="planTab" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    return tabs + (UI.planTab === 'gantt' ? ganttView() : planningTeams());
   };
+  var GZ = { day: 34, week: 16, month: 5 };
+  function syncChantier(cid) {
+    var l = S.tasks.filter(function (t) { return t.chantierId === cid && !t.milestone; }), c = find(S.chantiers, cid); if (!c || !l.length) return;
+    var w = 0, s = 0; l.forEach(function (t) { var d = N.diff(t.end, t.start) + 1; w += d; s += d * t.progress; }); c.progress = Math.round(s / w);
+  }
+  function taskChanged(t, msg) { syncChantier(t.chantierId); persist('Tâche « ' + t.name + ' » ' + msg); var g = $('#gt'); if (g) UI.gs = [g.scrollLeft, g.scrollTop]; render(true); }
+  function ganttView() {
+    var GN = window.innerWidth <= 760 ? 150 : 250, today = N.today(), dw = GZ[UI.gz] || 16, tasks = S.tasks.filter(function (t) { return UI.gc === 'all' || t.chantierId === UI.gc; });
+    var late = tasks.filter(function (t) { return !t.milestone && t.end < today && t.progress < 100; }).length;
+    var doing = tasks.filter(function (t) { return !t.milestone && t.start <= today && t.end >= today && t.progress < 100; }).length;
+    var done = tasks.filter(function (t) { return t.progress >= 100; }).length;
+    var kp = '<div class="kpis">' + kpi('Tâches', tasks.length, S.chantiers.length + ' chantiers suivis', 'grid', true) + kpi('En cours', doing, 'aujourd\'hui', 'clock') + kpi('En retard', late, late ? 'à replanifier' : 'aucun retard', 'alert') + kpi('Terminées', done, Math.round(done / (tasks.length || 1) * 100) + ' % des tâches', 'check') + '</div>';
+    var tb = '<div class="toolbar"><select class="in" data-gc style="width:auto"><option value="all">Tous les chantiers</option>' + S.chantiers.map(function (c) { return '<option value="' + c.id + '"' + (UI.gc === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select><div class="chips">' + [['day', 'Jour'], ['week', 'Semaine'], ['month', 'Mois']].map(function (z) { return '<button class="chip ' + (UI.gz === z[0] ? 'is-on' : '') + '" data-act="gz" data-v="' + z[0] + '">' + z[1] + '</button>'; }).join('') + '</div><button class="btn btn--line" data-act="gtToday">Aujourd\'hui</button><span style="flex:1"></span><button class="btn btn--pri" data-act="taskEdit">' + ic('plus') + 'Tâche</button></div>';
+    if (!tasks.length) return kp + tb + '<div class="card empty">Aucune tâche pour ce chantier. Ajoutez la première.</div>';
+    var min = tasks.reduce(function (a, t) { return t.start < a ? t.start : a; }, tasks[0].start), max = tasks.reduce(function (a, t) { return t.end > a ? t.end : a; }, tasks[0].end);
+    var origin = N.monday(N.addD(min, -7)), endD = N.addD(max, 21), days = N.diff(endD, origin) + 1, W = days * dw;
+    var showDays = dw >= 26, showWeeks = dw >= 12, HH = (showDays || showWeeks) ? 58 : 30, i, months = '', sub = '';
+    for (i = 0; i < days;) { var m = N.parse(N.addD(origin, i)), nxt = new Date(m.getFullYear(), m.getMonth() + 1, 1), n = Math.min(days - i, Math.round((nxt - m) / 86400000)); months += '<div class="gt-m" style="width:' + n * dw + 'px">' + (n * dw > 90 ? m.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : (n * dw > 30 ? m.toLocaleDateString('fr-FR', { month: 'short' }) : '')) + '</div>'; i += n; }
+    if (showDays) { for (i = 0; i < days; i++) { var dd = N.addD(origin, i), p = N.parse(dd); sub += '<div class="gt-d' + ((p.getDay() === 0 || p.getDay() === 6) ? ' we' : '') + (dd === today ? ' now' : '') + '" style="width:' + dw + 'px">' + p.getDate() + '</div>'; } }
+    else if (showWeeks) { for (i = 0; i < days; i += 7) { var pw = N.parse(N.addD(origin, i)); sub += '<div class="gt-d" style="width:' + 7 * dw + 'px">' + pw.getDate() + '/' + (pw.getMonth() + 1) + '</div>'; } }
+    var rows = [], y = HH, byId = {};
+    S.chantiers.filter(function (c) { return tasks.some(function (t) { return t.chantierId === c.id; }); }).forEach(function (c) {
+      rows.push({ k: 'g', c: c, y: y, h: 46 }); y += 46;
+      tasks.filter(function (t) { return t.chantierId === c.id; }).sort(function (a, b) { return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0); }).forEach(function (t) { var r = { k: 't', t: t, y: y, h: 42 }; rows.push(r); byId[t.id] = r; y += 42; });
+    });
+    var H = y, bg = 'background-image:repeating-linear-gradient(90deg,transparent 0,transparent ' + 5 * dw + 'px,rgba(14,26,46,.05) ' + 5 * dw + 'px,rgba(14,26,46,.05) ' + 7 * dw + 'px),linear-gradient(90deg,rgba(14,26,46,.08) 1px,transparent 1px);background-size:' + 7 * dw + 'px 100%;';
+    var body = rows.map(function (r) {
+      if (r.k === 'g') {
+        var c = r.c, ts = tasks.filter(function (t) { return t.chantierId === c.id; }), s0 = ts.reduce(function (a, t) { return t.start < a ? t.start : a; }, ts[0].start), e0 = ts.reduce(function (a, t) { return t.end > a ? t.end : a; }, ts[0].end), col = chaCol(c.id);
+        return '<div class="gt-r gt-g" style="height:46px"><div class="gt-n" style="width:' + GN + 'px;border-left:4px solid ' + col + '"><b>' + esc(c.name) + '</b><small>' + c.progress + ' % · ' + N.dFr(c.start, { day: 'numeric', month: 'short' }) + ' → ' + N.dFr(c.end, { day: 'numeric', month: 'short' }) + '</small></div><div class="gt-l" style="width:' + W + 'px;' + bg + '"><i class="gt-sum" style="left:' + N.diff(s0, origin) * dw + 'px;width:' + (N.diff(e0, s0) + 1) * dw + 'px;background:' + col + '"></i></div></div>';
+      }
+      var t = r.t, col = chaCol(t.chantierId), x = N.diff(t.start, origin) * dw, w = (N.diff(t.end, t.start) + 1) * dw, a = emp(t.assignee), lt = !t.milestone && t.end < today && t.progress < 100;
+      var bar = t.milestone ? '<button class="gm" data-act="taskEdit" data-id="' + t.id + '" style="left:' + (x + dw / 2 - 10) + 'px;color:' + col + '" aria-label="Jalon ' + esc(t.name) + '"><i></i></button>'
+        : '<div class="gb' + (lt ? ' is-late' : '') + (t.progress >= 100 ? ' is-done' : '') + '" data-act="taskEdit" data-id="' + t.id + '" data-dw="' + dw + '" style="left:' + x + 'px;width:' + w + 'px;background:' + col + '" title="' + esc(t.name) + ' — ' + t.progress + ' %"><i class="gb-p" style="width:' + t.progress + '%"></i><span class="gb-t">' + (w > 70 ? t.progress + ' %' : '') + '</span><b class="gb-h"></b></div>' + (w <= 70 ? '<span class="gb-o" style="left:' + (x + w + 6) + 'px">' + t.progress + ' %</span>' : '');
+      return '<div class="gt-r" style="height:42px"><div class="gt-n" data-act="taskEdit" data-id="' + t.id + '" style="width:' + GN + 'px;cursor:pointer"><b>' + (t.milestone ? '◆ ' : '') + esc(t.name) + '</b><small>' + (a ? esc(a.name) + ' · ' : '') + N.dFr(t.start, { day: 'numeric', month: 'short' }) + (t.milestone ? '' : ' → ' + N.dFr(t.end, { day: 'numeric', month: 'short' })) + (lt ? ' · <span style="color:var(--bad)">en retard</span>' : '') + '</small></div><div class="gt-l" style="width:' + W + 'px;' + bg + '">' + bar + '</div></div>';
+    }).join('');
+    var svg = '';
+    tasks.forEach(function (t) {
+      var d = t.dep && byId[t.dep], r = byId[t.id]; if (!d || !r) return;
+      var x1 = GN + (N.diff(d.t.end, origin) + 1) * dw, y1 = d.y + d.h / 2, x2 = GN + N.diff(t.start, origin) * dw + (t.milestone ? dw / 2 - 10 : 0), y2 = r.y + r.h / 2, xm = x1 + 7;
+      svg += '<path d="M' + x1 + ' ' + y1 + ' H' + xm + ' V' + y2 + ' H' + (x2 - 1) + '" fill="none" stroke="#7a8aa5" stroke-width="1.4"/><path d="M' + (x2 - 1) + ' ' + y2 + ' l-5 -3.5 v7z" fill="#7a8aa5"/>';
+    });
+    var tl = (today >= origin && today <= endD) ? '<i class="gt-today" style="left:' + (GN + N.diff(today, origin) * dw + dw / 2) + 'px"></i>' : '';
+    var legend = S.chantiers.map(function (c) { return '<span><i style="background:' + chaCol(c.id) + '"></i>' + esc(c.name.split(' — ')[0]) + '</span>'; }).join('') + '<span><i style="background:#0e1a2e;opacity:.6"></i>Part réalisée</span><span>◆ Jalon</span><span><i style="background:#d9402f"></i>Tâche en retard</span><span>│ Aujourd\'hui</span>';
+    UI.gOrigin = { origin: origin, dw: dw };
+    return kp + tb + '<div class="gt-scroll" id="gt"><div class="gt" style="width:' + (GN + W) + 'px;height:' + H + 'px"><div class="gt-h" style="height:' + HH + 'px"><div class="gt-n gt-hn" style="width:' + GN + 'px">Tâches</div><div style="width:' + W + 'px"><div class="gt-mr">' + months + '</div>' + (sub ? '<div class="gt-dr">' + sub + '</div>' : '') + '</div></div>' + body + '<svg class="gt-svg" width="' + (GN + W) + '" height="' + H + '">' + svg + '</svg>' + tl + '</div></div>' +
+      '<div class="card"><div class="legend">' + legend + '</div><p style="margin-top:.7rem;color:var(--muted);font-size:.85rem;font-weight:600">Touchez une tâche pour la modifier. Sur ordinateur, glissez une barre pour la décaler ou tirez son bord droit pour changer la durée. L\'avancement du chantier se calcule à partir de ses tâches.</p></div>';
+  }
+  function taskEdit(id, cid) {
+    var t = id ? find(S.tasks, id) : { name: '', chantierId: cid || (UI.gc !== 'all' ? UI.gc : S.chantiers[0].id), start: N.today(), end: N.addD(N.today(), 7), progress: 0, dep: '', assignee: '', milestone: false };
+    var depOpts = function (cid2, cur, self) { return '<option value="">— Aucune —</option>' + S.tasks.filter(function (x) { return x.chantierId === cid2 && x.id !== self; }).map(function (x) { return '<option value="' + x.id + '"' + (x.id === cur ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join(''); };
+    var body = '<form id="mf" data-form="task" data-id="' + (id || '') + '" class="stack"><label class="f">Tâche<input class="in" name="name" value="' + esc(t.name) + '" required placeholder="Ex. : Pose des panneaux"></label>' +
+      '<div class="grid2"><label class="f">Chantier<select class="in" name="chantierId">' + S.chantiers.map(function (c) { return '<option value="' + c.id + '"' + (c.id === t.chantierId ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></label><label class="f">Responsable<select class="in" name="assignee"><option value="">—</option>' + S.employees.filter(function (e) { return e.service !== 'Administration'; }).map(function (e) { return '<option value="' + e.id + '"' + (e.id === t.assignee ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select></label></div>' +
+      '<div class="grid2"><label class="f">Début<input class="in" type="date" name="start" value="' + t.start + '" required></label><label class="f">Fin<input class="in" type="date" name="end" value="' + t.end + '" required></label></div>' +
+      '<label class="f">Démarre après (dépendance)<select class="in" name="dep">' + depOpts(t.chantierId, t.dep, t.id) + '</select></label>' +
+      '<label class="f"><span>Avancement : <b id="pv">' + t.progress + '</b> %</span><input type="range" name="progress" min="0" max="100" step="5" value="' + t.progress + '" oninput="document.getElementById(\'pv\').textContent=this.value" style="width:100%;accent-color:#f08a24"></label>' +
+      '<label style="display:flex;gap:.6rem;align-items:center;font-weight:700"><input type="checkbox" name="milestone" ' + (t.milestone ? 'checked' : '') + ' style="width:20px;height:20px;accent-color:var(--orange)"> Jalon (étape clé sans durée : réception, mise en service…)</label></form>';
+    modal({ title: id ? 'Modifier la tâche' : 'Nouvelle tâche', body: body, foot: (id ? '<button class="btn btn--danger" data-act="delTask" data-id="' + id + '">' + ic('trash') + '</button>' : '') + '<span class="sp"></span><button class="btn btn--ghost" data-act="close">Annuler</button><button class="btn btn--pri" type="submit" form="mf">Enregistrer</button>' });
+  }
+  var drag = null;
+  document.addEventListener('pointerdown', function (e) {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    var b = e.target.closest('.gb'); if (!b) return;
+    drag = { el: b, id: b.dataset.id, x0: e.clientX, mode: e.target.classList.contains('gb-h') ? 'size' : 'move', dw: +b.dataset.dw, l0: b.offsetLeft, w0: b.offsetWidth, moved: false };
+    try { b.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault();
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (!drag) return; var dx = e.clientX - drag.x0; if (Math.abs(dx) > 4) drag.moved = true; if (!drag.moved) return;
+    var st = Math.round(dx / drag.dw) * drag.dw;
+    if (drag.mode === 'move') drag.el.style.left = (drag.l0 + st) + 'px'; else drag.el.style.width = Math.max(drag.dw, drag.w0 + st) + 'px';
+  });
+  document.addEventListener('pointerup', function (e) {
+    if (!drag) return; var d = drag; drag = null; if (!d.moved) return;
+    UI.sup = true; setTimeout(function () { UI.sup = false; }, 80);
+    var n = Math.round((e.clientX - d.x0) / d.dw), t = find(S.tasks, d.id); if (!t || !n) { render(true); return; }
+    if (d.mode === 'move') { t.start = N.addD(t.start, n); t.end = N.addD(t.end, n); } else { var ne = N.addD(t.end, n); t.end = ne < t.start ? t.start : ne; }
+    taskChanged(t, d.mode === 'move' ? 'décalée de ' + n + ' j' : 'durée modifiée');
+  });
+
+
 
   /* ----- RH ----- */
+  var DOC_TYPES = ['CV', 'Pièce d\'identité', 'Contrat de travail', 'Diplôme', 'Attestation CNSS', 'Certificat médical', 'Habilitation / certificat', 'Autre'];
+  var REQ_DOCS = ['CV', 'Pièce d\'identité', 'Contrat de travail'];
+  var hasDoc = function (docs, l) { return (docs || []).some(function (d) { return d.label === l; }); };
+  function completeness(e) {
+    var u = e.urgence || {}, b = e.birth || {}, id = e.idCard || {};
+    var chk = [!!e.photo, !!e.cnss, !!e.cnamgs, !!b.date, !!e.tel, !!(u.nom && u.tel), !!id.num, !!e.adresse, hasDoc(e.docs, 'CV'), hasDoc(e.docs, 'Pièce d\'identité'), hasDoc(e.docs, 'Contrat de travail')];
+    return Math.round(chk.filter(Boolean).length / chk.length * 100);
+  }
+  function medState(e) { var m = e.visite && e.visite.expire; if (!m) return 'none'; var d = N.diff(m, N.today()); return d < 0 ? 'bad' : (d <= 30 ? 'warn' : 'ok'); }
+  function idState(e) { var m = e.idCard && e.idCard.expire; if (!m) return 'none'; var d = N.diff(m, N.today()); return d < 0 ? 'bad' : (d <= 60 ? 'warn' : 'ok'); }
+  function photoEl(e, cls) { return e.photo ? '<img class="avatar avatar--img ' + (cls || '') + '" src="' + e.photo + '" alt="">' : '<span class="avatar ' + (cls || '') + '">' + initials(e.name || '?') + '</span>'; }
+  function fileSize(n) { return n > 1e6 ? (n / 1e6).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(n / 1000)) + ' Ko'; }
+
   V.rh = function () {
     var cur = UI.f.rh || 'all', services = ['Génie civil', 'Électricité', 'Énergie', 'Administration'], t = N.today();
-    var chips = chipsHtml([['all', 'Tous', S.employees.length]].concat(services.map(function (s) { return [s, s, S.employees.filter(function (e) { return e.service === s; }).length]; })), cur, 'rh');
+    var inc = S.employees.filter(function (e) { return completeness(e) < 100; }).length, med = S.employees.filter(function (e) { return medState(e) === 'bad' || medState(e) === 'warn'; }).length;
+    var chips = chipsHtml([['all', 'Tous', S.employees.length]].concat(services.map(function (s) { return [s, s, S.employees.filter(function (e) { return e.service === s; }).length]; })).concat([['inc', 'Dossier incomplet', inc], ['med', 'Visite médicale', med]]), cur, 'rh');
     var renew = 0, bad = 0; S.employees.forEach(function (e) { e.habs.forEach(function (h) { var s = habState(h); if (s === 'warn') renew++; if (s === 'bad') bad++; }); });
     var away = S.employees.filter(function (e) { var v = S.planning[t + '|' + e.id]; return v === 'conge' || v === 'maladie' || v === 'formation'; }).length;
     var mass = S.employees.reduce(function (a, e) { return a + (+e.salaire || 0); }, 0);
     UI.res = function () {
-      var l = S.employees.filter(function (e) { return (cur === 'all' || e.service === cur) && match(e.name + e.poste + e.service); });
+      var l = S.employees.filter(function (e) { return (cur === 'all' || e.service === cur || (cur === 'inc' && completeness(e) < 100) || (cur === 'med' && (medState(e) === 'bad' || medState(e) === 'warn'))) && match(e.name + e.poste + e.service + (e.matricule || '') + (e.cnss || '')); });
       if (!l.length) return '<div class="card empty">Aucun salarié.</div>';
-      return '<div class="cards">' + l.map(function (e) { var v = S.planning[t + '|' + e.id], c = v && find(S.chantiers, v), where = c ? c.name.split(' — ')[0] : (v === 'conge' ? 'En congé' : v === 'formation' ? 'En formation' : v === 'maladie' ? 'Absent (maladie)' : 'Non affecté');
-        return '<div class="rc" data-act="openEmp" data-id="' + e.id + '"><div class="rc__top"><span class="avatar">' + initials(e.name) + '</span><div style="flex:1;min-width:0"><b>' + esc(e.name) + '</b><small>' + esc(e.poste) + '</small></div><span class="badge b-mute">' + esc(e.contrat) + '</span></div><div class="rc__tags">' + (e.habs.length ? e.habs.map(function (h) { var s = habState(h); return '<span class="badge b-' + (s === 'ok' ? 'ok' : s === 'warn' ? 'warn' : 'bad') + '" title="Expire le ' + N.dFr(h.expire) + '">' + (s === 'bad' ? '⚠ ' : '') + esc(h.label) + '</span>'; }).join('') : '<span class="badge b-mute">Aucune habilitation requise</span>') + '</div><div class="rc__meta"><span>Aujourd\'hui : ' + esc(where) + '</span><span>' + e.conges + ' j congés</span></div></div>'; }).join('') + '</div>';
+      return '<div class="cards">' + l.map(function (e) {
+        var v = S.planning[t + '|' + e.id], c = v && find(S.chantiers, v), where = c ? c.name.split(' — ')[0] : (v === 'conge' ? 'En congé' : v === 'formation' ? 'En formation' : v === 'maladie' ? 'Absent (maladie)' : 'Non affecté'), cp = completeness(e), ms = medState(e);
+        return '<div class="rc" data-act="openEmp" data-id="' + e.id + '"><div class="rc__top">' + photoEl(e) + '<div style="flex:1;min-width:0"><b>' + esc(e.name) + '</b><small>' + esc(e.poste) + ' · ' + esc(e.matricule || '') + '</small></div><span class="badge b-mute">' + esc(e.contrat) + '</span></div>' +
+          '<div class="rc__tags">' + e.habs.map(function (h) { var s = habState(h); return '<span class="badge b-' + (s === 'ok' ? 'ok' : s === 'warn' ? 'warn' : 'bad') + '" title="Expire le ' + N.dFr(h.expire) + '">' + (s === 'bad' ? '⚠ ' : '') + esc(h.label) + '</span>'; }).join('') + (ms === 'bad' || ms === 'warn' ? '<span class="badge b-' + (ms === 'bad' ? 'bad' : 'warn') + '">' + (ms === 'bad' ? '⚠ ' : '') + 'Visite médicale</span>' : '') + (!e.habs.length && ms !== 'bad' && ms !== 'warn' ? '<span class="badge b-mute">Aucune habilitation requise</span>' : '') + '</div>' +
+          '<div><div class="rc__meta"><span>Dossier</span><span style="color:' + (cp < 100 ? 'var(--warn)' : 'var(--ok)') + '">' + cp + ' %</span></div><div class="bar bar--navy" style="margin-top:.25rem"><i style="width:' + cp + '%"></i></div></div>' +
+          '<div class="rc__meta"><span>Aujourd\'hui : ' + esc(where) + '</span><span>' + e.conges + ' j congés</span></div></div>';
+      }).join('') + '</div>';
     };
-    return '<div class="kpis">' + kpi('Effectif', S.employees.length, S.employees.filter(function (e) { return e.contrat === 'CDI'; }).length + ' en CDI', 'team', true) + kpi('Absents aujourd\'hui', away, 'congés, formations, maladie', 'cal') + kpi('Habilitations à renouveler', renew + bad, bad + ' expirée(s) · ' + renew + ' sous 30 j', 'bolt') + kpi('Masse salariale', fmtM(mass) + ' XAF', 'brute mensuelle (démo)', 'cash') + '</div>' +
+    return '<div class="kpis">' + kpi('Effectif', S.employees.length, S.employees.filter(function (e) { return e.contrat === 'CDI'; }).length + ' en CDI', 'team', true) + kpi('Absents aujourd\'hui', away, 'congés, formations, maladie', 'cal') + kpi('Habilitations à renouveler', renew + bad, bad + ' expirée(s) · ' + renew + ' sous 30 j', 'bolt') + kpi('Dossiers à compléter', inc, med + ' visite(s) médicale(s) à prévoir', 'devis') + kpi('Masse salariale', fmtM(mass) + ' XAF', 'brute mensuelle (démo)', 'cash') + '</div>' +
       listHead(0, 'Nouveau salarié', 'openEmp', '', chips) + '<div id="res">' + UI.res() + '</div>';
   };
 
@@ -299,19 +405,60 @@
     var body = '<form id="mf" data-form="chantier" data-id="' + (id || '') + '" class="stack"><label class="f">Nom du chantier<input class="in" name="name" value="' + esc(c.name) + '" required></label><div class="grid2"><label class="f">Client<select class="in" name="clientId">' + S.clients.map(function (x) { return '<option value="' + x.id + '"' + (x.id === c.clientId ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label><label class="f">Lieu<input class="in" name="site" value="' + esc(c.site) + '"></label></div>' +
       '<div class="grid2"><label class="f">Début<input class="in" type="date" name="start" value="' + c.start + '"></label><label class="f">Fin prévue<input class="in" type="date" name="end" value="' + c.end + '"></label></div><div class="grid2"><label class="f">Budget (XAF)<input class="in" type="number" name="budget" value="' + c.budget + '" min="0"></label><label class="f">Dépensé (XAF)<input class="in" type="number" name="spent" value="' + c.spent + '" min="0"></label></div>' +
       '<div class="grid2"><label class="f">Statut<select class="in" name="status">' + ['Planifié', 'En cours', 'Terminé', 'Suspendu'].map(function (s) { return '<option' + (s === c.status ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></label><label class="f">Responsable<select class="in" name="manager"><option value="">—</option>' + S.employees.map(function (e) { return '<option value="' + e.id + '"' + (e.id === c.manager ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select></label></div>' +
-      '<label class="f">Avancement : <span id="pv">' + c.progress + '</span> %<input type="range" name="progress" min="0" max="100" value="' + c.progress + '" oninput="document.getElementById(\'pv\').textContent=this.value" style="width:100%;accent-color:#f08a24"></label></form>';
+      '<label class="f"><span>Avancement : <b id="pv">' + c.progress + '</b> %</span><input type="range" name="progress" min="0" max="100" value="' + c.progress + '" oninput="document.getElementById(\'pv\').textContent=this.value" style="width:100%;accent-color:#f08a24"></label></form>';
     modal({ title: id ? 'Chantier' : 'Nouveau chantier', body: body, foot: (id ? '<button class="btn btn--danger" data-act="delChantier" data-id="' + id + '">' + ic('trash') + '</button>' : '') + '<span class="sp"></span><button class="btn btn--ghost" data-act="close">Annuler</button><button class="btn btn--pri" type="submit" form="mf">Enregistrer</button>' });
   }
   var HABS = ['B0', 'B1V', 'B2V', 'BR', 'BC', 'H0', 'H1V', 'H2V', 'HC', 'Travail en hauteur', 'Secourisme SST', 'CACES'];
-  function habRow(h) { h = h || { label: 'B2V', expire: N.addD(N.today(), 365) }; return '<div class="grid2 hab" style="grid-template-columns:1fr 1fr 40px;align-items:center"><input class="in" name="hl" list="dl-hab" value="' + esc(h.label) + '"><input class="in" type="date" name="he" value="' + h.expire + '"><button type="button" class="btn btn--ghost btn--icon" data-act="habDel">' + ic('x') + '</button></div>'; }
-  function openEmp(id) {
-    var e = id ? emp(id) : { name: '', poste: '', service: 'Génie civil', tel: '', contrat: 'CDI', embauche: N.today(), salaire: 0, conges: 0, habs: [] };
-    var body = '<form id="mf" data-form="emp" data-id="' + (id || '') + '" class="stack"><datalist id="dl-hab">' + HABS.map(function (h) { return '<option value="' + h + '">'; }).join('') + '</datalist><div class="grid2"><label class="f">Nom complet<input class="in" name="name" value="' + esc(e.name) + '" required></label><label class="f">Poste<input class="in" name="poste" value="' + esc(e.poste) + '" required></label></div>' +
-      '<div class="grid3"><label class="f">Service<select class="in" name="service">' + ['Génie civil', 'Électricité', 'Énergie', 'Administration'].map(function (s) { return '<option' + (s === e.service ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></label><label class="f">Contrat<select class="in" name="contrat">' + ['CDI', 'CDD', 'Stagiaire', 'Prestataire'].map(function (s) { return '<option' + (s === e.contrat ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></label><label class="f">Embauche<input class="in" type="date" name="embauche" value="' + e.embauche + '"></label></div>' +
-      '<div class="grid3"><label class="f">Téléphone<input class="in" name="tel" value="' + esc(e.tel) + '" inputmode="tel"></label><label class="f">Salaire brut (XAF)<input class="in" type="number" name="salaire" value="' + e.salaire + '" min="0"></label><label class="f">Solde congés (j)<input class="in" type="number" name="conges" value="' + e.conges + '" min="0"></label></div>' +
-      '<div><div class="card__h" style="margin-bottom:.5rem"><h3 style="font-size:.95rem">Habilitations et formations</h3><button type="button" class="btn btn--line btn--sm" data-act="habAdd">' + ic('plus') + 'Ajouter</button></div><div class="stack" id="habs" style="gap:.5rem">' + e.habs.map(habRow).join('') + '</div></div></form>';
-    modal({ title: id ? esc(e.name) : 'Nouveau salarié', body: body, foot: (id ? '<button class="btn btn--danger" data-act="delEmp" data-id="' + id + '">' + ic('trash') + '</button><button class="btn btn--line" data-act="leave" data-emp="' + id + '">' + ic('cal') + 'Congé</button>' + (e.tel ? '<a class="btn btn--line" href="tel:+241' + e.tel.replace(/\D/g, '') + '">' + ic('phone') + '</a>' : '') : '') + '<span class="sp"></span><button class="btn btn--ghost" data-act="close">Annuler</button><button class="btn btn--pri" type="submit" form="mf">Enregistrer</button>' });
+  function habRow(h) { h = h || { label: 'B2V', expire: N.addD(N.today(), 365) }; return '<div class="hab"><input class="in" name="hl" list="dl-hab" value="' + esc(h.label) + '"><input class="in" type="date" name="he" value="' + h.expire + '"><button type="button" class="btn btn--ghost btn--icon" data-act="habDel">' + ic('x') + '</button></div>'; }
+  var EW = null;
+  function docList() {
+    var miss = REQ_DOCS.filter(function (l) { return !hasDoc(EW.docs, l); });
+    var chk = '<div class="rc__tags" style="margin-bottom:.8rem">' + REQ_DOCS.map(function (l) { return '<span class="badge ' + (hasDoc(EW.docs, l) ? 'b-ok' : 'b-warn') + '">' + (hasDoc(EW.docs, l) ? '✓ ' : '○ ') + esc(l) + '</span>'; }).join('') + '</div>';
+    var rows = EW.docs.length ? '<ul class="list">' + EW.docs.map(function (d) {
+      return '<li><span class="dot ' + (d.label === 'CV' ? 'info' : 'ok') + '">' + ic(d.label === 'CV' ? 'users' : 'devis') + '</span><div style="flex:1;min-width:0"><b>' + esc(d.label) + '</b><small>' + esc(d.name) + ' · ' + fileSize(d.size || 0) + ' · ajouté le ' + N.dFr(d.date) + '</small></div><a class="btn btn--line btn--sm" href="' + d.data + '" download="' + esc(d.name) + '" target="_blank" rel="noopener">' + ic('dl') + '</a><button type="button" class="btn btn--ghost btn--icon" data-act="docDel" data-id="' + d.id + '" aria-label="Supprimer">' + ic('trash') + '</button></li>';
+    }).join('') + '</ul>' : '<div class="empty" style="padding:1rem">Aucun document pour le moment.</div>';
+    return chk + rows;
   }
+  function fld(label, name, val, type, extra) { return '<label class="f">' + label + '<input class="in" name="' + name + '" type="' + (type || 'text') + '" value="' + esc(val == null ? '' : val) + '" ' + (extra || '') + '></label>'; }
+  function sel(label, name, list, cur) { return '<label class="f">' + label + '<select class="in" name="' + name + '">' + list.map(function (x) { return '<option' + (x === cur ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>'; }
+  function blankEmp() {
+    return { name: '', poste: '', service: 'Génie civil', tel: '', email: '', contrat: 'CDI', embauche: N.today(), salaire: 0, conges: 0, habs: [], photo: '', docs: [], matricule: 'NMJ-' + String(S.employees.length + 1).padStart(3, '0'), cnss: '', cnamgs: '', birth: { date: '', place: '' }, nationalite: 'Gabonaise', adresse: '', civil: 'Célibataire', enfants: 0, idCard: { type: 'CNI', num: '', expire: '' }, urgence: { nom: '', lien: 'Épouse', tel: '', tel2: '' }, sang: '', visite: { date: '', expire: '' }, epi: { vetement: 'M', pointure: '' }, diplome: '', contratFin: '', essaiFin: '', notes: '' };
+  }
+  function openEmp(id) {
+    var e = id ? emp(id) : blankEmp(), u = e.urgence || {}, b = e.birth || {}, ic2 = e.idCard || {}, vi = e.visite || {}, ep = e.epi || {}, cp = completeness(e);
+    EW = { photo: e.photo || '', docs: (e.docs || []).map(function (d) { return Object.assign({}, d); }) };
+    var tabs = [['id', 'Identité'], ['job', 'Poste & contrat'], ['adm', 'Administratif'], ['urg', 'Urgence & santé'], ['doc', 'Documents'], ['hab', 'Habilitations']];
+    var body = '<form id="mf" data-form="emp" data-id="' + (id || '') + '" class="stack"><datalist id="dl-hab">' + HABS.map(function (h) { return '<option value="' + h + '">'; }).join('') + '</datalist>' +
+      '<div class="fh"><div class="fh__ph" id="fh-ph">' + (EW.photo ? '<img src="' + EW.photo + '" alt="Photo d\'identité">' : '<span>' + initials(e.name || '+') + '</span>') + '</div><div class="fh__t"><h4>' + (id ? esc(e.name) : 'Nouveau collaborateur') + '</h4><span>' + (id ? esc(e.poste) + ' · ' + esc(e.matricule || '') : 'Renseignez la fiche, puis les documents') + '</span><div class="quick" style="margin-top:.6rem"><label class="btn btn--line btn--sm" style="cursor:pointer">' + ic('plus') + 'Photo d\'identité<input type="file" accept="image/*" id="ph-file" hidden></label>' + (EW.photo ? '<button type="button" class="btn btn--ghost btn--sm" data-act="phDel">Retirer</button>' : '') + '</div></div><div class="fh__c"><small>Dossier complet</small><b>' + cp + ' %</b><div class="bar bar--navy"><i style="width:' + cp + '%"></i></div></div></div>' +
+      '<div class="chips fs-tabs">' + tabs.map(function (x, i) { return '<button type="button" class="chip ' + (i ? '' : 'is-on') + '" data-act="empTab" data-s="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="fs stack" data-s="id"><div class="grid2">' + fld('Nom complet', 'name', e.name, 'text', 'required') + fld('Nationalité', 'nationalite', e.nationalite) + '</div><div class="grid3">' + fld('Date de naissance', 'birthDate', b.date, 'date') + fld('Lieu de naissance', 'birthPlace', b.place) + sel('Situation familiale', 'civil', ['Célibataire', 'Marié(e)', 'Divorcé(e)', 'Veuf(ve)', 'Union libre'], e.civil) + '</div><div class="grid3">' + fld('Enfants à charge', 'enfants', e.enfants, 'number', 'min="0"') + fld('Téléphone', 'tel', e.tel, 'tel', 'inputmode="tel"') + fld('E-mail', 'email', e.email, 'email') + '</div>' + fld('Adresse (quartier, ville)', 'adresse', e.adresse) + fld('Diplôme / formation initiale', 'diplome', e.diplome) + '</div>' +
+      '<div class="fs stack" data-s="job" hidden><div class="grid2">' + fld('Poste', 'poste', e.poste, 'text', 'required') + sel('Service', 'service', ['Génie civil', 'Électricité', 'Énergie', 'Administration'], e.service) + '</div><div class="grid3">' + sel('Contrat', 'contrat', ['CDI', 'CDD', 'Stagiaire', 'Prestataire'], e.contrat) + fld('Matricule', 'matricule', e.matricule) + fld('Date d\'embauche', 'embauche', e.embauche, 'date') + '</div><div class="grid3">' + fld('Fin de contrat (CDD)', 'contratFin', e.contratFin, 'date') + fld('Fin période d\'essai', 'essaiFin', e.essaiFin, 'date') + fld('Solde de congés (j)', 'conges', e.conges, 'number', 'min="0"') + '</div>' + fld('Salaire brut mensuel (XAF)', 'salaire', e.salaire, 'number', 'min="0"') + '<label class="f">Notes internes<textarea class="in" name="notes" rows="3">' + esc(e.notes || '') + '</textarea></label></div>' +
+      '<div class="fs stack" data-s="adm" hidden><div class="grid2">' + fld('N° CNSS', 'cnss', e.cnss, 'text', 'placeholder="015-0000000-A"') + fld('N° CNAMGS', 'cnamgs', e.cnamgs) + '</div><div class="grid3">' + sel('Pièce d\'identité', 'idType', ['CNI', 'Passeport', 'Carte de séjour'], ic2.type) + fld('N° de la pièce', 'idNum', ic2.num) + fld('Date d\'expiration', 'idExpire', ic2.expire, 'date') + '</div><p class="hint">Les numéros affichés dans la démonstration sont fictifs. Les copies (CNI, CNSS…) se déposent dans l\'onglet « Documents ».</p></div>' +
+      '<div class="fs stack" data-s="urg" hidden><h5 class="fs__h">Personne à contacter en cas d\'urgence</h5><div class="grid2">' + fld('Nom et prénom', 'ugNom', u.nom) + sel('Lien', 'ugLien', ['Époux', 'Épouse', 'Père', 'Mère', 'Frère', 'Sœur', 'Enfant', 'Ami(e)', 'Autre'], u.lien) + '</div><div class="grid2">' + fld('Téléphone', 'ugTel', u.tel, 'tel', 'inputmode="tel"') + fld('Téléphone secondaire', 'ugTel2', u.tel2, 'tel') + '</div><h5 class="fs__h">Santé et équipements</h5><div class="grid3">' + sel('Groupe sanguin', 'sang', ['', 'O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'], e.sang) + fld('Visite médicale — date', 'medDate', vi.date, 'date') + fld('Aptitude valable jusqu\'au', 'medExpire', vi.expire, 'date') + '</div><div class="grid2">' + sel('Taille de vêtement', 'vet', ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'], ep.vetement) + fld('Pointure (chaussures de sécurité)', 'pointure', ep.pointure, 'text', 'inputmode="numeric"') + '</div></div>' +
+      '<div class="fs stack" data-s="doc" hidden><div id="doc-list">' + docList() + '</div><div class="addbox"><label class="f">Ajouter un document<select class="in" id="doc-type">' + DOC_TYPES.map(function (x) { return '<option>' + x + '</option>'; }).join('') + '</select></label><label class="btn btn--dark" style="cursor:pointer">' + ic('plus') + 'Choisir un fichier<input type="file" id="doc-file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt" hidden></label><small class="hint">PDF, Word ou image — 1,2 Mo maximum par fichier (démo : stockage dans le navigateur).</small></div></div>' +
+      '<div class="fs stack" data-s="hab" hidden><div class="card__h" style="margin-bottom:.2rem"><h3 style="font-size:.95rem">Habilitations et formations</h3><button type="button" class="btn btn--line btn--sm" data-act="habAdd">' + ic('plus') + 'Ajouter</button></div><div class="stack" id="habs" style="gap:.5rem">' + e.habs.map(habRow).join('') + '</div></div></form>';
+    var foot = (id ? '<button class="btn btn--danger" data-act="delEmp" data-id="' + id + '">' + ic('trash') + '</button><button class="btn btn--line" data-act="empSheet" data-id="' + id + '">' + ic('print') + 'Fiche</button><button class="btn btn--line" data-act="leave" data-emp="' + id + '">' + ic('cal') + 'Congé</button>' + (e.tel ? '<a class="btn btn--line" href="tel:+241' + e.tel.replace(/\D/g, '') + '" aria-label="Appeler">' + ic('phone') + '</a>' : '') : '') + '<span class="sp"></span><button class="btn btn--ghost" data-act="close">Annuler</button><button class="btn btn--pri" type="submit" form="mf">Enregistrer</button>';
+    modal({ title: id ? 'Fiche collaborateur' : 'Nouveau collaborateur', cls: 'modal--lg', body: body, foot: foot });
+  }
+  function empSheet(id) {
+    var e = emp(id), c = S.company, u = e.urgence || {}, b = e.birth || {}, ic2 = e.idCard || {}, vi = e.visite || {}, ep = e.epi || {};
+    var kv = function (rows) { return '<div class="kv">' + rows.map(function (r) { return '<span>' + r[0] + '</span><b>' + (r[1] ? esc(r[1]) : '—') + '</b>'; }).join('') + '</div>'; };
+    var dt = function (s) { return s ? N.dFr(s) : ''; };
+    var html = '<div class="doc"><div class="doc__top"><div class="doc__co"><img src="../assets/img/logo.png" alt=""><div><b>' + esc(c.name) + '</b><span>' + esc(c.address) + '</span><span>' + esc(c.tel) + '</span></div></div><div class="doc__ttl"><h2>FICHE SALARIÉ</h2><span>Matricule <b>' + esc(e.matricule || '') + '</b></span><span>Édité le ' + N.dFr(N.today()) + '</span></div></div>' +
+      '<div class="sheet-id">' + (e.photo ? '<img src="' + e.photo + '" alt="">' : '<span class="sheet-id__n">' + initials(e.name) + '</span>') + '<div><h3 style="font-size:1.4rem">' + esc(e.name) + '</h3><p style="margin:.2rem 0 .6rem;color:#4a566a">' + esc(e.poste) + ' — ' + esc(e.service) + ' · ' + esc(e.contrat) + '</p><p style="margin:0">' + esc(e.tel || '') + (e.email ? ' · ' + esc(e.email) : '') + '</p></div></div>' +
+      '<h4 class="doc__h">État civil</h4>' + kv([['Naissance', (dt(b.date) + (b.place ? ' à ' + b.place : ''))], ['Nationalité', e.nationalite], ['Situation familiale', e.civil + (e.enfants ? ' · ' + e.enfants + ' enfant(s)' : '')], ['Adresse', e.adresse], ['Formation', e.diplome]]) +
+      '<h4 class="doc__h">Contrat</h4>' + kv([['Embauche', dt(e.embauche)], ['Type de contrat', e.contrat + (e.contratFin ? ' — jusqu\'au ' + dt(e.contratFin) : '')], ['Fin période d\'essai', dt(e.essaiFin)], ['Salaire brut', e.salaire ? fmt(e.salaire) + ' XAF / mois' : ''], ['Solde de congés', e.conges + ' jours']]) +
+      '<h4 class="doc__h">Administratif</h4>' + kv([['N° CNSS', e.cnss], ['N° CNAMGS', e.cnamgs], [ic2.type || 'Pièce d\'identité', (ic2.num || '') + (ic2.expire ? ' — expire le ' + dt(ic2.expire) : '')]]) +
+      '<h4 class="doc__h">En cas d\'urgence</h4>' + kv([['Personne à contacter', u.nom ? u.nom + (u.lien ? ' (' + u.lien + ')' : '') : ''], ['Téléphone', (u.tel || '') + (u.tel2 ? ' / ' + u.tel2 : '')]]) +
+      '<h4 class="doc__h">Santé et sécurité</h4>' + kv([['Groupe sanguin', e.sang], ['Aptitude médicale', vi.expire ? 'valable jusqu\'au ' + dt(vi.expire) : ''], ['Équipement', (ep.vetement ? 'Vêtement ' + ep.vetement : '') + (ep.pointure ? ' · pointure ' + ep.pointure : '')], ['Habilitations', e.habs.map(function (h) { return h.label + ' (→ ' + dt(h.expire) + ')'; }).join(', ')]]) +
+      '<h4 class="doc__h">Documents au dossier</h4>' + kv([['Pièces', (e.docs || []).map(function (d) { return d.label; }).join(' · ')]]) + '<div class="doc__foot">Document confidentiel — ' + esc(c.name) + ' · NIF ' + esc(c.nif) + '</div></div>';
+    $$('#modals .ov[data-doc]').forEach(function (o) { o.remove(); });
+    var m = modal({ title: 'Fiche — ' + esc(e.name), cls: 'modal--doc', body: html, foot: '<span class="sp"></span><button class="btn btn--ghost" data-act="close">Fermer</button><button class="btn btn--dark" data-act="print">' + ic('print') + 'Imprimer / PDF</button>' }); m.dataset.doc = '1';
+  }
+  function readImage(file, cb) {
+    var r = new FileReader(); r.onload = function () { var im = new Image(); im.onload = function () { var s = Math.min(im.width, im.height), c = document.createElement('canvas'); c.width = c.height = 320; c.getContext('2d').drawImage(im, (im.width - s) / 2, (im.height - s) / 2, s, s, 0, 0, 320, 320); cb(c.toDataURL('image/jpeg', 0.82)); }; im.onerror = function () { toast('Image illisible'); }; im.src = r.result; }; r.readAsDataURL(file);
+  }
+
   function editStock(id) {
     var x = id ? find(S.stock, id) : { ref: '', label: '', cat: 'Câbles', unit: 'pièce', qty: 0, min: 5, pu: 0 };
     var body = '<form id="mf" data-form="stock" data-id="' + (id || '') + '" class="stack"><label class="f">Désignation<input class="in" name="label" value="' + esc(x.label) + '" required></label><div class="grid3"><label class="f">Référence<input class="in" name="ref" value="' + esc(x.ref) + '"></label><label class="f">Catégorie<select class="in" name="cat">' + ['Câbles', 'Protection', 'Solaire', 'Sécurité (EPI)', 'Gros œuvre', 'Finitions'].map(function (s) { return '<option' + (s === x.cat ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></label><label class="f">Unité<input class="in" name="unit" value="' + esc(x.unit) + '"></label></div><div class="grid3"><label class="f">Quantité<input class="in" type="number" name="qty" value="' + x.qty + '" min="0" step="any"></label><label class="f">Seuil d\'alerte<input class="in" type="number" name="min" value="' + x.min + '" min="0"></label><label class="f">Prix d\'achat (XAF)<input class="in" type="number" name="pu" value="' + x.pu + '" min="0"></label></div></form>';
@@ -339,6 +486,15 @@
 
   /* ---------- Actions ---------- */
   var A = {
+    planTab: function (el) { UI.planTab = el.dataset.v; UI.gs = null; render(true); },
+    gz: function (el) { UI.gz = el.dataset.v; UI.gs = null; render(true); },
+    gtToday: function () { UI.gs = null; render(true); },
+    taskEdit: function (el) { if (UI.sup) return; taskEdit(el.dataset.id); },
+    delTask: function (el) { if (!confirm('Supprimer cette tâche ?')) return; var id = el.dataset.id, t = find(S.tasks, id); S.tasks = S.tasks.filter(function (x) { return x.id !== id; }); S.tasks.forEach(function (x) { if (x.dep === id) x.dep = ''; }); syncChantier(t.chantierId); persist('Tâche supprimée'); closeAll(); render(true); },
+    empTab: function (el) { var f = el.closest('form'); $$('.fs', f).forEach(function (s) { s.hidden = s.dataset.s !== el.dataset.s; }); $$('.fs-tabs .chip', f).forEach(function (c) { c.classList.toggle('is-on', c === el); }); },
+    empSheet: function (el) { empSheet(el.dataset.id); },
+    docDel: function (el) { EW.docs = EW.docs.filter(function (d) { return d.id !== el.dataset.id; }); $('#doc-list').innerHTML = docList(); },
+    phDel: function (el) { EW.photo = ''; $('#fh-ph').innerHTML = '<span>+</span>'; el.remove(); },
     close: function () { closeTop(); }, go: function (el) { closeAll(); location.hash = '#/' + el.dataset.id; }, planGo: function () { location.hash = '#/planning'; },
     chip: function (el) { UI.f[el.dataset.key] = el.dataset.v; render(true); },
     newDoc: function (el) { closeAll(); editDoc(el.dataset.type, null, el.dataset.client); },
@@ -387,6 +543,13 @@
 
   /* ---------- Formulaires ---------- */
   var F = {
+    task: function (f) {
+      var id = f.dataset.id, t = id ? find(S.tasks, id) : { id: N.uid('t') }, ms = f.milestone.checked, old = t.chantierId;
+      var st = f.start.value, en = ms ? st : f.end.value; if (en < st) { toast('La fin précède le début'); return; }
+      Object.assign(t, { name: f.name.value.trim(), chantierId: f.chantierId.value, assignee: f.assignee.value, start: st, end: en, dep: f.dep.value, progress: +f.progress.value || 0, milestone: ms });
+      if (!id) S.tasks.push(t); syncChantier(t.chantierId); if (old && old !== t.chantierId) syncChantier(old);
+      persist('Tâche « ' + t.name + ' » ' + (id ? 'modifiée' : 'ajoutée')); closeAll(); render(true); toast('Tâche enregistrée');
+    },
     doc: function (f) {
       var type = f.dataset.type, id = f.dataset.id, lines = readLines(f);
       if (!f.clientId.value) { toast('Choisissez un client'); return; } if (!lines.length) { toast('Ajoutez au moins une ligne'); return; }
@@ -399,11 +562,13 @@
     client: function (f) { var id = f.dataset.id, c = id ? find(S.clients, id) : { id: N.uid('cl') }; ['name', 'type', 'city', 'contact', 'tel', 'email'].forEach(function (k) { c[k] = f[k].value.trim(); }); if (!id) S.clients.push(c); persist('Client ' + c.name + (id ? ' mis à jour' : ' ajouté')); closeAll(); render(); toast('Client enregistré'); },
     chantier: function (f) { var id = f.dataset.id, c = id ? find(S.chantiers, id) : { id: N.uid('c') }; Object.assign(c, { name: f.name.value.trim(), clientId: f.clientId.value, site: f.site.value.trim(), start: f.start.value, end: f.end.value, budget: +f.budget.value || 0, spent: +f.spent.value || 0, status: f.status.value, manager: f.manager.value, progress: +f.progress.value || 0 }); if (!id) S.chantiers.push(c); persist('Chantier « ' + c.name + ' » : avancement ' + c.progress + ' %'); closeAll(); render(); toast('Chantier enregistré'); },
     emp: function (f) {
-      var id = f.dataset.id, e = id ? emp(id) : { id: N.uid('e'), habs: [] };
-      Object.assign(e, { name: f.name.value.trim(), poste: f.poste.value.trim(), service: f.service.value, contrat: f.contrat.value, embauche: f.embauche.value, tel: f.tel.value.trim(), salaire: +f.salaire.value || 0, conges: +f.conges.value || 0 });
-      e.email = e.email || e.name.toLowerCase().split(' ')[0].normalize('NFD').replace(/[̀-ͯ]/g, '') + '@nmj.example';
+      var id = f.dataset.id, e = id ? emp(id) : { id: N.uid('e'), habs: [] }, v = function (n) { return f[n].value.trim(); };
+      var est = JSON.stringify(S).length + EW.docs.reduce(function (s, d) { return s + (d.data || '').length; }, 0) + (EW.photo || '').length;
+      if (est > 4600000) { toast('Stockage presque plein : retirez un document volumineux'); return; }
+      Object.assign(e, { name: v('name'), poste: v('poste'), service: f.service.value, contrat: f.contrat.value, embauche: f.embauche.value, contratFin: f.contratFin.value, essaiFin: f.essaiFin.value, matricule: v('matricule'), tel: v('tel'), email: v('email'), salaire: +f.salaire.value || 0, conges: +f.conges.value || 0, notes: v('notes'), diplome: v('diplome'), nationalite: v('nationalite'), civil: f.civil.value, enfants: +f.enfants.value || 0, adresse: v('adresse'),
+        cnss: v('cnss'), cnamgs: v('cnamgs'), birth: { date: f.birthDate.value, place: v('birthPlace') }, idCard: { type: f.idType.value, num: v('idNum'), expire: f.idExpire.value }, urgence: { nom: v('ugNom'), lien: f.ugLien.value, tel: v('ugTel'), tel2: v('ugTel2') }, sang: f.sang.value, visite: { date: f.medDate.value, expire: f.medExpire.value }, epi: { vetement: f.vet.value, pointure: v('pointure') }, photo: EW.photo, docs: EW.docs });
       e.habs = $$('.hab', f).map(function (r) { return { label: $('[name=hl]', r).value.trim(), expire: $('[name=he]', r).value }; }).filter(function (h) { return h.label && h.expire; });
-      if (!id) S.employees.push(e); persist('Salarié ' + e.name + (id ? ' mis à jour' : ' ajouté')); closeAll(); render(); toast('Salarié enregistré');
+      if (!id) S.employees.push(e); if (persist('Collaborateur ' + e.name + (id ? ' mis à jour' : ' ajouté'))) { closeAll(); render(); toast('Fiche enregistrée'); }
     },
     stock: function (f) { var id = f.dataset.id, x = id ? find(S.stock, id) : { id: N.uid('s') }; Object.assign(x, { label: f.label.value.trim(), ref: f.ref.value.trim(), cat: f.cat.value, unit: f.unit.value.trim() || 'pièce', qty: +f.qty.value || 0, min: +f.min.value || 0, pu: +f.pu.value || 0 }); if (!id) S.stock.push(x); persist(); closeAll(); render(); toast('Article enregistré'); },
     mvt: function (f) { var x = find(S.stock, f.dataset.id), q = +f.qty.value, t = f.dataset.t; if (t === 'out' && q > x.qty) { toast('Stock insuffisant (' + x.qty + ' ' + x.unit + ')'); return; } x.qty += t === 'in' ? q : -q; S.mvts.unshift({ ts: Date.now(), itemId: x.id, type: t, qty: q, note: f.note.value }); persist((t === 'in' ? 'Entrée' : 'Sortie') + ' de stock : ' + q + ' × ' + x.label); closeAll(); render(); toast('Mouvement enregistré'); },
@@ -424,6 +589,7 @@
     $('#view').innerHTML = V[r](); $('#view').style.animation = 'none'; void $('#view').offsetWidth; $('#view').style.animation = '';
     var counts = { devis: S.devis.filter(function (d) { return devSt(d) === 'envoyé'; }).length, factures: S.factures.filter(function (f) { return facInfo(f).st === 'en retard'; }).length };
     $$('.nav__a .n').forEach(function (n) { var k = n.parentNode.dataset.r; n.textContent = counts[k] || ''; n.hidden = !counts[k]; });
+    var g = $('#gt'); if (g) { if (UI.gs) { g.scrollLeft = UI.gs[0]; g.scrollTop = UI.gs[1]; UI.gs = null; } else if (UI.gOrigin) { var x = N.diff(N.today(), UI.gOrigin.origin) * UI.gOrigin.dw; g.scrollLeft = Math.max(0, x - 120); } }
     $$('.bar i').forEach(function (b) { var w = b.style.width; b.style.width = '0'; requestAnimationFrame(function () { requestAnimationFrame(function () { b.style.width = w; }); }); });
   }
   function route() { var h = (location.hash || '#/dashboard').replace('#/', ''); if (!V[h]) h = 'dashboard'; if (h !== UI.route) { UI.q = ''; } UI.route = h; render(); window.scrollTo(0, 0); }
@@ -447,8 +613,18 @@
     }
   });
   document.addEventListener('change', function (e) {
+    if (e.target.id === 'ph-file' && e.target.files[0]) { readImage(e.target.files[0], function (d) { EW.photo = d; $('#fh-ph').innerHTML = '<img src="' + d + '" alt="Photo d\'identité">'; }); e.target.value = ''; return; }
+    if (e.target.id === 'doc-file' && e.target.files[0]) {
+      var fl = e.target.files[0]; if (fl.size > 1.2e6) { toast('Fichier trop volumineux (1,2 Mo maximum)'); e.target.value = ''; return; }
+      var rd = new FileReader(); rd.onload = function () { EW.docs.push({ id: N.uid('doc'), label: $('#doc-type').value, name: fl.name, size: fl.size, date: N.today(), data: rd.result }); $('#doc-list').innerHTML = docList(); toast('Document ajouté — pensez à enregistrer la fiche'); }; rd.readAsDataURL(fl); e.target.value = ''; return;
+    }
+    if (e.target.matches('[data-gc]')) { UI.gc = e.target.value; UI.gs = null; render(true); return; }
+    if (e.target.name === 'chantierId' && e.target.closest('form[data-form=task]')) {
+      var fm = e.target.closest('form'), tid = fm.dataset.id;
+      fm.dep.innerHTML = '<option value="">— Aucune —</option>' + S.tasks.filter(function (x) { return x.chantierId === e.target.value && x.id !== tid; }).map(function (x) { return '<option value="' + x.id + '">' + esc(x.name) + '</option>'; }).join(''); return;
+    }
     if (e.target.id === 'cat-pick' && e.target.value) { var p = find(S.catalog, e.target.value), l = $('#lines'); l.insertAdjacentHTML('beforeend', lineRow({ label: p.label, qty: 1, unit: p.unit, pu: p.price })); e.target.value = ''; recalc(l.closest('.ov')); }
-    if (e.target.matches('[data-import]')) { var fl = e.target.files[0]; if (!fl) return; var rd = new FileReader(); rd.onload = function () { try { var j = JSON.parse(rd.result); if (j.v !== 2 || !j.clients) throw 0; S = j; N.setState(j); render(); toast('Données importées'); } catch (x) { toast('Fichier invalide'); } }; rd.readAsText(fl); }
+    if (e.target.matches('[data-import]')) { var fl = e.target.files[0]; if (!fl) return; var rd = new FileReader(); rd.onload = function () { try { var j = JSON.parse(rd.result); if (!(j.v >= 2) || !j.clients) throw 0; S = N.setState(j); render(); toast('Données importées'); } catch (x) { toast('Fichier invalide'); } }; rd.readAsText(fl); }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeTop(); });
   window.addEventListener('hashchange', route);

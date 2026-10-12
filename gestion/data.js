@@ -43,7 +43,7 @@ window.NMJ = (function () {
   /* ---------- Données de démonstration ---------- */
   function seed() {
     var t = today(), y = new Date().getFullYear();
-    var S = { v: 2, company: {
+    var S = { v: 3, company: {
       name: 'NMJ SERVICES', form: 'SARL au capital de 2 000 000 FCFA', address: 'Owendo, derrière le centre des Métiers de la SEEG, Jean Violas — BP 2507 Libreville, Gabon',
       tel: '062 82 18 38 / 074 66 47 64', email: 'nmjservices.gabon@gmail.com', nif: '44835G', rccm: 'RC.LBV.2017.B21051', tva: 18, conditions: 'Paiement à 30 jours. Acompte de 50 % à la commande pour les travaux.'
     } };
@@ -178,6 +178,8 @@ window.NMJ = (function () {
       { ts: Date.now() - 30 * 3600e3, text: 'Paiement reçu — SOBRAGA' },
       { ts: Date.now() - 52 * 3600e3, text: 'Chantier « Centrale solaire » : avancement 84 %' }
     ];
+    S.employees.forEach(function (e, i) { enrich(e, i); });
+    S.tasks = seedTasks(S);
     return S;
   }
 
@@ -188,11 +190,68 @@ window.NMJ = (function () {
     return { sub: sub, rem: rem, ht: ht, tva: tva, ttc: ht + tva };
   }
 
+  /* ---------- Fiches salariés détaillées (démo) ---------- */
+  function avatarSvg(i) {
+    var bg = ['#1a2d4d', '#243b63', '#0e7c86', '#7a3fa3', '#b4530b', '#2f8f5b'][i % 6], skin = ['#8d5a3b', '#6b4226', '#a9744f', '#5a3a22'][i % 4];
+    var svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' fill='" + bg + "'/><path d='M14 120c3-28 20-42 46-42s43 14 46 42z' fill='#f08a24'/><path d='M44 80l16 14 16-14' fill='none' stroke='#ffd59a' stroke-width='5'/><circle cx='60' cy='50' r='23' fill='" + skin + "'/><path d='M36 46a24 24 0 0148 0z' fill='#fff'/><rect x='33' y='44' width='54' height='6' rx='3' fill='#e8ecf3'/></svg>";
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+  function demoDoc(label, name, t) {
+    return { id: uid('doc'), label: label, name: name, size: 1800, date: addD(t, -200), data: 'data:text/plain;charset=utf-8,' + encodeURIComponent('Document de démonstration — ' + label + ' — ' + name) };
+  }
+  function enrich(e, i) {
+    var t = today(), q = ['Nzeng-Ayong', 'Akébé', 'Owendo', 'Batterie IV', 'Louis', 'Lalala', 'Okala', 'Angondjé', 'Alibandeng', 'Mont-Bouët', 'Sibang', 'Glass'];
+    var urg = [['Marie Mba', 'Épouse'], ['Paul Nzé', 'Frère'], ['Sandrine Ondo', 'Épouse'], ['Josiane Obiang', 'Mère'], ['Alain Mouélé', 'Père'], ['Clarisse Ndong', 'Épouse'], ['Gilbert Essono', 'Frère'], ['Pauline Moukagni', 'Épouse'], ['Rose Mintsa', 'Mère'], ['Éric Bivigou', 'Époux'], ['Nadège Koumba', 'Sœur'], ['Théodore Ntoutoume', 'Père']];
+    var dipl = ['Licence en génie civil', 'Ingénieure électricienne — INSG', 'BTS électrotechnique', 'CAP maçonnerie, 15 ans d\'expérience', 'BTS assistanat de direction', 'CAP maçonnerie', 'CAP électricité', 'CAP plomberie', 'CAP peinture en bâtiment', 'Licence en comptabilité', 'BTS énergies renouvelables', 'Stagiaire — BTS génie civil'];
+    var med = [200, 15, -10, 120, 300, 45, -30, 150, 260, 90, 20, 310];
+    e.matricule = 'NMJ-' + String(i + 1).padStart(3, '0'); e.photo = avatarSvg(i);
+    e.cnss = '015-0' + String(195811 + i * 1371).padStart(6, '0') + '-' + 'ABCDEFGHJKLM'[i % 12]; e.cnamgs = '0219000' + String(22416 + i * 37).padStart(5, '0');
+    e.birth = { date: (1978 + (i * 3) % 17) + '-' + String(1 + i % 12).padStart(2, '0') + '-' + String(5 + (i * 2) % 20).padStart(2, '0'), place: i % 3 ? 'Libreville' : 'Port-Gentil' };
+    e.nationalite = 'Gabonaise'; e.adresse = q[i % 12] + ', Libreville'; e.civil = ['Célibataire', 'Marié(e)', 'Marié(e)', 'Divorcé(e)'][i % 4]; e.enfants = i % 4;
+    e.idCard = { type: 'CNI', num: 'G' + String(1000000 + i * 48271), expire: addD(t, i === 7 ? -20 : 400 + i * 53) };
+    e.urgence = { nom: urg[i][0], lien: urg[i][1], tel: '07' + (4 + i % 3) + ' 5' + (i % 10) + ' 6' + ((i * 7) % 10) + ' ' + (10 + i * 3) + ' ' + (20 + i * 2), tel2: '' };
+    e.sang = ['O+', 'A+', 'B+', 'O-', 'AB+'][i % 5]; e.visite = { date: addD(t, med[i] - 365), expire: addD(t, med[i]) };
+    e.epi = { vetement: ['M', 'L', 'XL', 'L', 'S', 'L', 'XL', 'M', 'L', 'M', 'L', 'M'][i], pointure: String(40 + i % 6) };
+    e.diplome = dipl[i]; e.contratFin = e.contrat === 'CDD' ? addD(t, 90 + i * 10) : ''; e.essaiFin = ''; e.notes = '';
+    e.docs = [];
+    if (i !== 8) e.docs.push(demoDoc('CV', 'CV_' + e.name.replace(/\s+/g, '_') + '.pdf', t));
+    if (i < 10) e.docs.push(demoDoc('Pièce d\'identité', 'CNI_' + e.name.split(' ')[0] + '.pdf', t));
+    if (i !== 11 && i !== 8) e.docs.push(demoDoc('Contrat de travail', 'Contrat_' + e.name.split(' ')[0] + '.pdf', t));
+    if (i === 1 || i === 2 || i === 10) e.docs.push(demoDoc('Diplôme', 'Diplome_' + e.name.split(' ')[0] + '.pdf', t));
+    return e;
+  }
+  function seedTasks(S) {
+    var t = today(), out = [], n = 0;
+    var P = {
+      c1: [['Terrassement et fondations', 0, .14, 100, null, 'e4'], ['Gros œuvre du RDC', .12, .38, 100, 0, 'e6'], ['Gros œuvre du R+1', .36, .58, 90, 1, 'e6'], ['Plancher R+2 et toiture', .56, .76, 30, 2, 'e12'], ['Électricité et plomberie (second œuvre)', .62, .88, 10, 2, 'e8'], ['Façades et peinture', .8, .95, 0, 3, 'e9'], ['Réception du bâtiment', .98, .98, 0, 5, 'e1', 1]],
+      c2: [['Études et plans d\'exécution', 0, .1, 100, null, 'e2'], ['Génie civil du poste', .08, .3, 100, 0, 'e4'], ['Pose des cellules HTA et du transformateur', .28, .55, 80, 1, 'e3'], ['Tirage des câbles et raccordements', .5, .78, 25, 2, 'e7'], ['Essais et réglages', .75, .92, 0, 3, 'e2'], ['Mise en service', .96, .96, 0, 4, 'e2', 1]],
+      c3: [['Dimensionnement et plans', 0, .1, 100, null, 'e11'], ['Fourniture du matériel', .08, .4, 100, 0, 'e11'], ['Pose des panneaux', .35, .7, 100, 1, 'e11'], ['Local batteries et câblage', .6, .85, 90, 2, 'e11'], ['Raccordement des onduleurs', .8, .95, 60, 3, 'e11'], ['Mise en service et formation', .97, .97, 0, 4, 'e11', 1]],
+      c4: [['Relevés sur site', 0, .25, 100, null, 'e7'], ['Diagnostic NF C 15-100', .2, .5, 40, 0, 'e3'], ['Rapport d\'inspection', .5, .65, 0, 1, 'e2'], ['Levée des réserves', .65, .9, 0, 2, 'e7'], ['Contre-visite et attestation', .92, .98, 0, 3, 'e3']],
+      c5: [['Dépose et préparation', 0, .1, 0, null, 'e6'], ['Rénovation des bureaux', .08, .5, 0, 0, 'e4'], ['Alimentation électrique', .4, .75, 0, 1, 'e2'], ['Réseau frigorifique', .6, .85, 0, 2, 'e3'], ['Finitions et nettoyage', .8, .98, 0, 3, 'e9']]
+    };
+    S.chantiers.forEach(function (c) {
+      var list = P[c.id]; if (!list) return;
+      var span = Math.max(1, diff(c.end, c.start)), ids = [];
+      list.forEach(function (x, k) {
+        var id = 't' + (++n); ids.push(id);
+        out.push({ id: id, chantierId: c.id, name: x[0], start: addD(c.start, Math.round(x[1] * span)), end: addD(c.start, Math.round(x[2] * span)), progress: x[3], dep: x[4] === null ? '' : ids[x[4]], assignee: x[5], milestone: !!x[6] });
+      });
+    });
+    return out;
+  }
+  function migrate(S) {
+    if (S.v === 2) {
+      S.employees.forEach(function (e, i) { if (!e.matricule) enrich(e, i % 12); });
+      S.tasks = S.tasks || seedTasks(S); S.v = 3;
+    }
+    return S;
+  }
+
   var S = null;
-  function load() { try { var r = localStorage.getItem(KEY); if (r) { S = JSON.parse(r); } } catch (e) { S = null; } if (!S || S.v !== 2) { S = seed(); save(); } return S; }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function load() { try { var r = localStorage.getItem(KEY); if (r) { S = migrate(JSON.parse(r)); } } catch (e) { S = null; } if (!S || S.v !== 3) { S = seed(); } save(); return S; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
   function reset() { S = seed(); save(); return S; }
-  function setState(x) { S = x; save(); }
+  function setState(x) { S = migrate(x); save(); return S; }
   function get() { return S; }
   function log(text) { S.log.unshift({ ts: Date.now(), text: text }); S.log = S.log.slice(0, 30); }
   function nextNum(prefix, list, date) {
@@ -201,5 +260,5 @@ window.NMJ = (function () {
     return prefix + '-' + y + '-' + String(mx + 1).padStart(3, '0');
   }
 
-  return { iso: iso, parse: parse, addD: addD, today: today, monday: monday, diff: diff, fmt: fmt, fmtM: fmtM, dFr: dFr, uid: uid, esc: esc, words: words, total: total, load: load, save: save, reset: reset, setState: setState, get: get, log: log, nextNum: nextNum };
+  return { iso: iso, parse: parse, addD: addD, today: today, monday: monday, diff: diff, fmt: fmt, fmtM: fmtM, dFr: dFr, uid: uid, esc: esc, words: words, total: total, load: load, save: save, avatarSvg: avatarSvg, reset: reset, setState: setState, get: get, log: log, nextNum: nextNum };
 })();
